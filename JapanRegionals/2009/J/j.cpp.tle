@@ -1,0 +1,194 @@
+#include<iostream>
+#include<vector>
+#include<string>
+#include<set>
+
+using namespace std;
+
+typedef vector<int> Line;
+typedef Line::iterator LineIt;
+typedef Line::const_iterator LineCIt;
+typedef vector<Line> Map;
+typedef Map::iterator MapIt;
+typedef Map::const_iterator MapCIt;
+typedef pair<int, int> Position;
+typedef pair<Map, Position> State;
+typedef vector<State> States;
+typedef States::iterator StatesIt;
+
+typedef long long ll;
+
+#define UN_INFECTED		0
+#define INFECTED		1
+#define VEHICLE			2
+
+#define DEBUG cout<<"DEBUG:"<<__LINE__<<endl
+
+int di[8] = {1, 1,  1, 0,  0, -1, -1, -1};
+int dj[8] = {1, 0, -1, 1, -1,  1,  0, -1};
+
+ll encode(const Map &m) {
+	ll output = 0;
+	for (MapCIt it1 = m.begin(); it1 != m.end(); it1++) {
+		for (LineCIt it2 = it1->begin(); it2 != it1->end(); it2++) {
+			output *= 3;
+			output += *it2;
+		}
+	}
+	return output;
+}
+
+bool isNoInfectedArea(const Map &m) {
+	for (MapCIt it1 = m.begin(); it1 != m.end(); it1++) {
+		for (LineCIt it2 = it1->begin(); it2 != it1->end(); it2++) {
+			if (*it2 == INFECTED) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+bool isInside(int i, int j, int n) {
+	return i < 0 || n <= i || j < 0 || n <= j;
+}
+
+int countAdjacentInfectedArea(const Map &m, int i, int j, int n) {
+	int count = 0;
+	for (int a = 0; a < 8; a++) {
+		int ai = i + di[a];
+		int aj = j + dj[a];
+		if (isInside(ai, aj, n)) {
+			continue;
+		}
+		if (m[ai][aj] != UN_INFECTED) {
+			count++;
+		}
+	}
+	return count;
+}
+
+int getNextCode(const Map &m, int i, int j, int n) {
+	switch (m[i][j]) {
+	case UN_INFECTED:
+		return countAdjacentInfectedArea(m, i, j, n) == 3 ? INFECTED : UN_INFECTED;
+	case INFECTED:
+		{
+			int c = countAdjacentInfectedArea(m, i, j, n);
+			if (c == 2 || c == 3) {
+				return INFECTED;
+			} else {
+				return UN_INFECTED;
+			}
+		}
+	case VEHICLE:
+		return VEHICLE;
+	default:
+		return -1;
+	}
+}
+
+Map generateNextMap(const Map &m, int n) {
+	Map output;
+	for (int i = 0; i < n; i++) {
+		Line l;
+		for (int j = 0; j < n; j++) {
+			l.push_back(getNextCode(m, i, j, n));
+		}
+		output.push_back(l);
+	}
+	return output;
+}
+
+int solve (int n, State initilaState) {
+	States queue1;
+	States queue2;
+	
+	States* beforeQueue = &queue1;
+	States* afterQueue = &queue2;
+	
+	set<ll> visited;
+	beforeQueue->push_back(initilaState);
+	visited.insert(encode(initilaState.first));
+	
+	int step = 0;
+	while (beforeQueue->size() > 0) {
+		afterQueue->clear();
+		for (StatesIt it = beforeQueue->begin(); it != beforeQueue->end(); it++) {
+			Map m = it->first;
+			Position p = it->second;
+			if (isNoInfectedArea(m)) {
+				return step;
+			}
+			m[p.first][p.second] = UN_INFECTED;
+			for (int a = 0; a < 8; a++) {
+				int nextI = p.first + di[a];
+				int nextJ = p.second + dj[a];
+				if (isInside(nextI, nextJ, n)) {
+					continue;
+				}
+				if (m[nextI][nextJ] == INFECTED) {
+					continue;
+				}
+				
+				m[nextI][nextJ] = VEHICLE;
+				Map nextMap = generateNextMap(m, n);
+				m[nextI][nextJ] = UN_INFECTED;
+				
+				ll encodedMap = encode(nextMap);
+				if (visited.find(encodedMap) != visited.end()) {
+					continue;
+				}
+				visited.insert(encodedMap);
+				Position nextPosition = make_pair(nextI, nextJ);
+				State nextState = make_pair(nextMap, nextPosition);
+				afterQueue->push_back(nextState);
+			}
+		}
+		
+		step++;
+		States* swap = beforeQueue;
+		beforeQueue = afterQueue;
+		afterQueue = swap;
+	}
+	return -1;
+}
+
+State readState(int n) {
+	Position pos = make_pair(-1, -1);
+	Map m;
+	for (int i= 0; i < n; i++) {
+		string line;
+		cin >> line;
+		vector<int> nextLine;
+		for (int j = 0; j < n; j++) {
+			switch (line[j]) {
+			case '.':
+				nextLine.push_back(UN_INFECTED);
+				break;
+			case '#':
+				nextLine.push_back(INFECTED);
+				break;
+			case '@':
+				nextLine.push_back(VEHICLE);
+				pos = make_pair(i, j);
+				break;
+			}
+		}
+		m.push_back(nextLine);
+	}
+	return make_pair(m, pos);
+}
+
+int main(void) {
+	while(true) {
+		int n;
+		cin >> n;
+		if (n == 0) {
+			break;
+		}
+		
+		State initialState = readState(n);
+		cout << solve(n, initialState) << endl;
+	}
+}
